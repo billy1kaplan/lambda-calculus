@@ -40,11 +40,17 @@
        (pair? exp)))
 
 (define (push stack item)
-  (if (null? stack)
-      (cons (list 0 item) stack)
-      (cons (list (+ (car (car stack)) 1)
-                  item)
-                  stack)))
+  (cons (list 0 item) stack))
+
+(define (push-n stack n item)
+  (cons (list n item) stack))
+
+(define (replace stack spaces match)
+  (map (lambda (item)
+         (if (equal? (cadr item) match)
+             (list spaces (cadr item))
+             item))
+       stack))
 
 (define (pop stack)
   (cdr stack))
@@ -69,9 +75,13 @@
         (force next))))
 
 (define (force-lambda exp)
+;  (cons (make-proc (proc-formal-arg (car exp))
+;                   (car (force (cons (proc-body (car exp))
+ ;                                    (push (cdr exp) (car exp))))))
+  ;      (cdr exp)))
   (cons (make-proc (proc-formal-arg (car exp))
                    (car (force (cons (proc-body (car exp))
-                                     (push (cdr exp) (car exp))))))
+                                     (cdr exp)))))
         (cdr exp)))
 
 ;; Evaluator:
@@ -89,8 +99,9 @@
     (if (proc? f)
         (let ((substitution-result (substitute (proc-formal-arg f) arg (proc-body f) env)))
           (lambda-eval substitution-result))
-        (let ((result (lambda-eval (cons arg (push (cdr exp)
-                                                   (list f arg))))))
+        ; (let ((result (lambda-eval (cons arg (push (cdr exp)
+        ;                                           (list f arg))))))
+        (let ((result (lambda-eval (cons arg (cdr exp)))))
           (cons (list f (car result))
                 (cdr result))))))
 
@@ -105,25 +116,32 @@
   (define (find history)
     (let ((location (string-contains (list->string (cadar prev)) (list->string exp))))
       (if location
-          (cons location (cadar prev))
+          (cons (+ location (caar prev)) (cadar prev))
           (find (cdr history)))))
-  (let ((result (internal exp))
-        (location (find prev)))
+    (define (parent history)
+    (let ((location (string-contains (list->string (cadar prev)) (list->string exp))))
+      (if location
+          (caar prev)
+          (find (cdr history)))))
+  (let* ((result (internal exp))
+        (location (find prev))
+        (parents (make-space (parent prev)))
+        (spaces (make-space (car location))))
     (begin
-      (display (cdr location))
+      (display (string-append parents (list->string (cdr location))))
       (newline)
-      (display (string-append (make-space (car location))
-                              (list->string exp)
-                              " where "
-                              (symbol->string var)
-                              " is "
-                              (list->string val)))
-      (newline)
+      (display (string-append spaces
+               (list->string exp)
+               " where "
+               (symbol->string var)
+               " is "
+               (list->string val)))
+    (newline)
     (display (string-append (make-space (car location))
                             (list->string result)))
     (newline)
     (cons result
-          (push prev result)))))
+          (push-n prev (car location) result)))))
 
 (define (make-space n)
   (if (= n 0)
