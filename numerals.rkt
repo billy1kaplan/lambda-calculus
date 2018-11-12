@@ -1,6 +1,7 @@
 #lang racket
 (require "spec.rkt")
 (require "lambda-eval.rkt")
+(require "fix.rkt")
 
 (define zero '(λ s (λ z z)))
 (define one '(λ s (λ z (s z))))
@@ -68,6 +69,43 @@
 (assert "Not T" F (run (compose NOT T)))
 
 ;; Define ZERO?
-(define ZERO? `(λ n ,(compose 'x F (compose NOT F))))
+(define ZERO? `(λ n ,(compose 'n F NOT F)))
 (assert "Is Zero" T (run (compose ZERO? zero)))
-(assert "Is not Zero" F (run (compose ZERO? one)))
+(assert "Is not Zero" F (run `(,ZERO? ,one)))
+
+;; Define Predecessor
+(define pred '(λ p (λ f (λ x (((p (λ g (λ h (h (g f))))) (λ u x)) (λ u u))))))
+(assert "Predeccessor of zero" zero (run `(,pred ,zero)))
+(assert "Predecessor of one" zero (run `(,pred ,one)))
+(assert "Predecessor of two" one (run `(,pred ,two)))
+
+(define ZERO-OR-ONE? `(λ o (,ZERO? (,pred o))))
+(assert "0 <= 1" T (run `(,ZERO-OR-ONE? ,zero)))
+(assert "1 <= 1" T (run `(,ZERO-OR-ONE? ,one)))
+(assert "2 <= 1" F (run `(,ZERO-OR-ONE? ,two)))
+
+(define Y '(λ f ((λ x (f (λ y ((x x) y))))
+                 (λ x (f (λ y ((x x) y)))))))
+
+(define almost-factorial
+  `(λ f
+    (λ n
+      (((,ZERO? n)
+        ,one)
+       ((,MULT n) (f (,pred n)))))))
+
+(define factorial (compose Y almost-factorial))
+(assert "4!" (number->church 24) (run (compose factorial four)))
+
+(define almost-fib
+  `(λ f
+     (λ n
+       (((,ZERO-OR-ONE? n)
+         n)
+        ((,ADD (f (,pred n))) (f (,pred (,pred n))))))))
+
+(define fib (compose Y almost-fib))
+(assert "fib 6" (number->church 8) (run (compose fib (number->church 6))))
+                    
+(provide number->church)
+(provide church->number)

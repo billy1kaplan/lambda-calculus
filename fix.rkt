@@ -1,9 +1,17 @@
 #lang racket
+(require srfi/13)
+
 ;; Redefining to remember how these work...
 (define (foldl-p f list)
   (if (null? list)
       '()
       (foldl f (car list) (cdr list))))
+
+(define (list->string l)
+  (cond ((not (pair? l)) (symbol->string l))
+        ((lambda? l) (string-append "(λ " (list->string (cadr l)) " " (list->string (caddr l)) ")"))
+        (else
+         (string-append "(" (list->string (car l)) " " (list->string (cadr l)) ")"))))
 
 ;; Selectors:
 (define (make-proc arg body)
@@ -31,40 +39,62 @@
   (and (not (lambda? exp))
        (pair? exp)))
 
+(define (push stack item)
+  (if (null? stack)
+      (cons (list 0 item) stack)
+      (cons (list (+ (car (car stack)) 1)
+                  item)
+                  stack)))
+
+(define (pop stack)
+  (cdr stack))
+
+(define (peek stack)
+  (cadr stack))
+
+(define (depth stack)
+  (if (null? stack)
+      0
+      (caar stack)))
+
 ;; Force: This gives a fixed-point simplification (which may or may not exist)
 (define (force exp)
-  (let ((next (cond ((not (pair? exp)) exp)
-                    ((lambda? exp) (force-lambda exp))
-                    ((application? exp) (eval-application exp))
+  (let ((next (cond ((variable? (car exp)) exp)
+                    ((lambda? (car exp)) (force-lambda exp))
+                    ((application? (car exp)) (eval-application exp))
                     (else
                      (error "Unknown expression type -- FORCE" exp)))))
-    (if (equal? exp next)
+    (if (equal? (car exp) (car next))
         exp
         (force next))))
 
 (define (force-lambda exp)
-  (make-proc (proc-formal-arg exp)
-             (force (proc-body exp))))
+  (cons (make-proc (proc-formal-arg (car exp))
+                   (car (force (cons (proc-body (car exp))
+                                     (push (cdr exp) (car exp))))))
+        (cdr exp)))
 
 ;; Evaluator:
 (define (lambda-eval exp)
-  (cond ((not (pair? exp)) exp)
-        ((lambda? exp) exp) ;; Don't evaluate lambdas until applied
-        ((application? exp) (eval-application exp))
+  (cond ((not (pair? (car exp))) exp)
+        ((lambda? (car exp)) exp) ;; Don't evaluate lambdas until applied
+        ((application? (car exp)) (eval-application exp))
         (else
          (error "Unknown expression type -- EVAL" exp))))
 
 (define (eval-application exp)
-  (let ((f (lambda-eval (car exp)))
-        (arg (cadr exp)))
+  (let ((f (car (lambda-eval (cons (car (car exp)) (cdr exp)))))
+        (env (cdr (lambda-eval (cons (car (car exp)) (cdr exp)))))
+        (arg (cadr (car exp))))
     (if (proc? f)
-        (lambda-eval (substitute (proc-formal-arg f) arg (proc-body f)))
-        (list f (lambda-eval arg)))))
+        (let ((substitution-result (substitute (proc-formal-arg f) arg (proc-body f) env)))
+          (lambda-eval substitution-result))
+        (let ((result (lambda-eval (cons arg (push (cdr exp)
+                                                   (list f arg))))))
+          (cons (list f (car result))
+                (cdr result))))))
 
-(define explain? #f)
-(define explanation '())
-
-(define (substitute var val exp)
+(define (substitute var val exp prev)
   (define (internal exp)
     (cond ((not (free? var exp)) exp)
                  ((variable? exp) val)
@@ -72,25 +102,33 @@
                  (else
                   (list (internal (car exp))
                         (internal (cadr exp))))))
-  (let ((result (internal exp)))
-    (if explain?
-        (set! explanation (mcons (list var val exp result) explanation))
-        (void))
-    result))
+  (define (find history)
+    (let ((location (string-contains (list->string (cadar prev)) (list->string exp))))
+      (if location
+          (cons location (cadar prev))
+          (find (cdr history)))))
+  (let ((result (internal exp))
+        (location (find prev)))
+    (begin
+      (display (cdr location))
+      (newline)
+      (display (string-append (make-space (car location))
+                              (list->string exp)
+                              " where "
+                              (symbol->string var)
+                              " is "
+                              (list->string val)))
+      (newline)
+    (display (string-append (make-space (car location))
+                            (list->string result)))
+    (newline)
+    (cons result
+          (push prev result)))))
 
-(define (explain exp)
-  (define (reverse-m list)
-    (define (iter acc list)
-      (if (null? list)
-          acc
-          (iter (cons (mcar list) acc) (mcdr list))))
-    (iter '() list))
-  (set! explain? #t)
-  (let ((result (force (run exp))))
-    (let ((reasons (reverse-m explanation)))
-      (set! explain? #f)
-      (set! explanation '())
-      (list exp reasons result))))
+(define (make-space n)
+  (if (= n 0)
+      ""
+      (string-append " " (make-space (- n 1)))))
 
 (define (pp explanation)
   (let ((exp (car explanation))
@@ -125,17 +163,17 @@
       (set! count (+ count 1))
       (string->symbol (string-append var-prefix
                                      (number->string count))))
-    (define (simplify-lambda exp)
+    (define (simplify-lambda exp env)
       (let ((replacement-var (next-variable)))
         (make-proc replacement-var
                    (simplify (substitute (cadr exp)
                                          replacement-var
                                          (proc-body exp))))))
-    (define (simplify exp)
+    (define (simplify exp env)
       (cond ((not (pair? exp)) exp)
-            ((lambda? exp) (simplify-lambda exp))
-            ((application? exp) (cons (simplify (car exp))
-                                      (simplify (cadr exp))))
+            ((lambda? exp) (simplify-lambda exp env))
+            ((application? exp) (cons (simplify (car exp) env)
+                                      (simplify (cadr exp) env)))
             (else
              (error "Unhandled case! -- SIMPLIFY" exp))))
      (simplify exp)))
@@ -146,8 +184,8 @@
           (genericize "x" exp2)))
 
 ;; Runs a lambda calculus expression by reducing it as far as possible
-(define (run exp)
-   (force exp))
+(define (explain exp)
+   (car (force (cons exp (push '() exp)))))
 
 ;; Applies a list of functions associatively: (a b c) -> ((a b) c)
 (define (compose . fs)
@@ -168,12 +206,9 @@
   (eval (make-compat exp) ns))
 
 (define S '(λ w (λ y (λ x (y ((w y) x))))))
+(define zero '(λ s (λ z z)))
 (define one '(λ s (λ z (s z))))
-(pp (explain (compose S one)))
+(explain (compose S zero))
+;(run '(λ x x))
 
-(provide run)
-(provide compose)
-(provide alpha-reduce?)
-(provide make-compat)
-(provide run-in-scheme)
-(provide genericize)
+(provide explain)

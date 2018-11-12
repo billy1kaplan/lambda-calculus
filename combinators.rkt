@@ -1,12 +1,11 @@
 #lang racket
 (require "spec.rkt")
-(require "lambda-eval.rkt")
+(require "fix.rkt")
+(require "numerals.rkt")
 
 (define S '(λ x (λ y (λ z ((x z) (y z))))))
 (define K '(λ x (λ y x)))
 (define I (run (compose S K K)))
-
-;(define S '(λ w (λ y (λ x (y ((w y) x))))))
 
 (define T K)
 (define F (run (compose S K)))
@@ -48,31 +47,37 @@
         (else
          (error "Unmatched expression -- FREE?" exp))))
 
+(define (SK-var? exp)
+  (not (eq? #f (memq exp '(S K I)))))
+
+(define (simplify-SK exp)
+  (cond ((SK-var? exp) exp)
+        ((eq? (car exp) 'I)
+         (simplify-SK (cadr exp)))
+        ((eq? (car exp) 'K) exp)
+        ((eq? (caar exp) 'K)
+         (simplify-SK (cadar exp)))
+        ((or (eq? (car exp) 'S)
+             (eq? (caar exp) 'S)) exp)
+        ((eq? (caaar exp) 'S)
+         `((,(cadaar exp) ,(simplify-SK (cadr exp))) (,(simplify-SK (cadar exp)) ,(simplify-SK (cadr exp)))))
+        (else "Error faild -- SIMPLIFY" exp)))
+
 ;; From: https://en.wikipedia.org/wiki/Combinatory_logic#Completeness_of_the_S-K_basis
-(define (convert-lambda exp)
-  (display exp)
-  (display (and (lambda? exp)
-       (lambda? (proc-body exp))
-       (free? (proc-formal-arg exp)
-              (proc-body (proc-body exp)))))
-  (display (and (lambda? exp)
-                (not (free? (proc-formal-arg exp) (proc-body exp)))))
-  (display (variable? exp))
-  (newline)
+(define (λ->SK exp)
   (cond ((variable? exp) exp)
-        ((application? exp) `(,(convert-lambda (car exp))
-                              ,(convert-lambda (cadr exp))))
+        ((application? exp) `(,(λ->SK (car exp)) ,(λ->SK (cadr exp))))
         ((not (free? (proc-formal-arg exp) (proc-body exp)))
-         `(K ,(convert-lambda (proc-body exp))))
+         `(K ,(λ->SK (proc-body exp))))
         ((reducible? exp I) 'I)
         ((and (lambda? exp)
               (lambda? (proc-body exp))
               (free? (proc-formal-arg exp)
                      (proc-body (proc-body exp))))
-         (convert-lambda
+         (λ->SK
           (make-lambda
            (proc-formal-arg exp)
-           (convert-lambda
+           (λ->SK
             (make-lambda
              (proc-formal-arg
               (proc-body exp))
@@ -80,12 +85,22 @@
               (proc-body
                exp)))))))
         (else `((S
-                 ,(convert-lambda
+                 ,(λ->SK
                    (make-lambda
                     (proc-formal-arg exp)
                     (car (proc-body exp)))))
-                ,(convert-lambda
+                ,(λ->SK
                   (make-lambda
                    (proc-formal-arg exp)
                    (cadr (proc-body exp))))))))
-(convert-lambda K)
+
+(define (run-SK exp)
+  (if (variable? exp)
+      exp
+      `(compose ,(run-SK (car exp))
+                ,(run-SK (cadr exp)))))
+
+(define-namespace-anchor anc)
+(define ns (namespace-anchor->namespace anc))
+(define (SK->λ exp)
+  (run (eval (run-SK exp) ns)))
