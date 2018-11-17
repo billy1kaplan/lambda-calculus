@@ -1,6 +1,6 @@
 #lang racket
 (require "spec.rkt")
-(require "fix.rkt")
+(require "lambda-eval.rkt")
 (require "numerals.rkt")
 
 (define S '(λ x (λ y (λ z ((x z) (y z))))))

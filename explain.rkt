@@ -223,10 +223,4 @@
 (define (run-in-scheme exp)
   (eval (make-compat exp) ns))
 
-(define S '(λ w (λ y (λ x (y ((w y) x))))))
-(define zero '(λ s (λ z z)))
-(define one '(λ s (λ z (s z))))
-(explain (compose S zero))
-;(run '(λ x x))
-
 (provide explain)

@@ -1,7 +1,7 @@
 #lang racket
 (require "spec.rkt")
 (require "lambda-eval.rkt")
-(require "fix.rkt")
+(require "explain.rkt")
 
 (define zero '(λ s (λ z z)))
 (define one '(λ s (λ z (s z))))
@@ -47,7 +47,6 @@
 (define MULT '(λ a (λ b (λ c (a (b c))))))
 (assert "2*2=4" four (run (compose MULT two two)))
 
-(provide zero)
 
 (define T '(λ x (λ y x)))
 (define F '(λ x (λ y y)))
@@ -79,6 +78,18 @@
 (assert "Predecessor of one" zero (run `(,pred ,one)))
 (assert "Predecessor of two" one (run `(,pred ,two)))
 
+;; Greater or equal?
+(define GT= `(λ x (λ y ,(compose ZERO? (compose 'x pred 'y)))))
+(assert "3 >= 2" T (run (compose GT= three two)))
+(assert "3 >= 3" T (run (compose GT= three three)))
+(assert "2 >= 3" F (run (compose GT= two three)))
+
+;; Greater than?
+(define GT `(λ x (λ y ,(compose ZERO? (compose 'x pred (compose S 'y))))))
+(assert "3 > 2" T (run (compose GT three two)))
+(assert "3 > 3" F (run (compose GT three three)))
+(assert "2 > 3" F (run (compose GT two three)))
+
 (define ZERO-OR-ONE? `(λ o (,ZERO? (,pred o))))
 (assert "0 <= 1" T (run `(,ZERO-OR-ONE? ,zero)))
 (assert "1 <= 1" T (run `(,ZERO-OR-ONE? ,one)))
@@ -107,5 +118,10 @@
 (define fib (compose Y almost-fib))
 (assert "fib 6" (number->church 8) (run (compose fib (number->church 6))))
                     
+(provide zero)
+(provide one)
+(provide S)
+(provide Y)
+(provide fib)
 (provide number->church)
 (provide church->number)

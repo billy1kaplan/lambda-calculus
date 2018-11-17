@@ -167,10 +167,6 @@
 (define (run-in-scheme exp)
   (eval (make-compat exp) ns))
 
-(define S '(λ w (λ y (λ x (y ((w y) x))))))
-(define one '(λ s (λ z (s z))))
-(pp (explain (compose S one)))
-
 (provide run)
 (provide compose)
 (provide alpha-reduce?)
