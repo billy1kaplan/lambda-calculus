@@ -1,2 +1,4 @@
 compiled/*
 *.bak
+ocaml/_build/*
+racket/compiled/*
