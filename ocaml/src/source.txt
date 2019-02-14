@@ -1,1 +1,32 @@
-\w.\z.(w (w (w z)))
+// True
+T = \x.\y.x
+// False
+F = \x.\y.y
+// Successor function
+S = \w.\y.\x.(y ((w y) x))
+// Zero
+Z = \w.\z.z
+// The church numeral 6
+E = (S (S (S (S (S (S Z))))))
+// Logical not
+N = \w.((w F) T)
+// Predicate - Zero?
+O = \n.(((n F) N) F)
+// Applicative order Y combinator
+Y = \f.(\x.(f \y.((x x) y)) \x.(f \y.((x x) y)))
+// Identity function
+I = \x.x
+// Predecessor Function
+P = \p.\f.\x.(((p \g.\h.(h (g f))) \u.x) I)
+// Multiplication function
+M = \a.\b.\c.(a (b c))
+// Factorial function
+// Pseudocode:
+// if (zero? n) then 1 else (multiply n ("fact" n - 1))
+B = (Y \f.\n.(((O n) (S Z)) ((M n) (f (P n)))))
+// >=
+G = \x.\y.(O ((x P) (S y)))
+// Add
+A = \m.\n.\f.\x.((m f) ((n f) x))
+// Fibonacci sequence
+W = (Y \f.\n.((((G (S (S Z))) n) n) ((A (f (P n))) (f (P (P n))))))

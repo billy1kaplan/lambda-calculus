@@ -1,0 +1,7 @@
+type input = char list
+
+type ('a, 'b) either =
+  | Error of 'a
+  | Right of 'b
+
+val parse : input -> (string, 'a * input) either

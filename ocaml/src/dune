@@ -1,4 +1,4 @@
-(library
+(executable
  (name lambda)
- (libraries parser eval))
+ (libraries parser eval either))
 

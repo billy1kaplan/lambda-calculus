@@ -117,7 +117,7 @@
 
 (define fib (compose Y almost-fib))
 (assert "fib 6" (number->church 8) (run (compose fib (number->church 6))))
-                    
+
 (provide zero)
 (provide one)
 (provide S)
